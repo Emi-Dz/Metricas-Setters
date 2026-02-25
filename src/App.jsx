@@ -4,6 +4,7 @@ import { ProtectedRoute } from './router/ProtectedRoute'
 import { LoginPage } from './pages/LoginPage'
 import { ClientDashboardPage } from './pages/ClientDashboardPage'
 import { AdminDashboardPage } from './pages/AdminDashboardPage'
+import { AdminClientesPage } from './pages/AdminClientesPage'
 import { Spinner } from './components/ui/Spinner'
 
 /**
@@ -50,6 +51,16 @@ function AppRoutes() {
         element={
           <ProtectedRoute requiredRole="admin">
             <AdminDashboardPage />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Admin sub-routes */}
+      <Route
+        path="/admin/clientes"
+        element={
+          <ProtectedRoute requiredRole="admin">
+            <AdminClientesPage />
           </ProtectedRoute>
         }
       />

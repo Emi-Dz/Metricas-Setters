@@ -13,6 +13,9 @@ export const adminAuthClient = createClient(
       persistSession: false,
       autoRefreshToken: false,
       detectSessionInUrl: false,
+      // Use a different storage key to avoid multiple GoTrueClient instances
+      // colliding with the main client in the same browser context.
+      storageKey: 'sb-admin-auth',
     },
   }
 )

@@ -10,6 +10,8 @@ export function AuthProvider({ children }) {
   const [profileError, setProfileError] = useState(null)
 
   const fetchProfile = async (userId) => {
+    // Reset error at the start so callers can re-detect changes
+    setProfileError(null)
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -18,36 +20,54 @@ export function AuthProvider({ children }) {
         .single()
 
       if (error || !data) {
+        console.error('fetchProfile: error or no data', { userId, error })
         setProfileError(
           'Tu perfil no fue encontrado. Contactá al administrador.'
         )
         return null
       }
 
+      console.log('fetchProfile: got profile', { userId, profile: data })
       setProfile(data)
       setProfileError(null)
       return data
     } catch {
+      console.error('fetchProfile: exception for userId', userId)
       setProfileError('Error al cargar el perfil.')
       return null
     }
   }
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session?.user) {
-        setUser(session.user)
-        await fetchProfile(session.user.id)
-      }
-      setLoading(false)
-    })
+    // Defensive: use optional chaining so a null/error response never crashes
+    supabase.auth
+      .getSession()
+      .then(async (result) => {
+        const session = result?.data?.session
+        console.log('AuthProvider: getSession result', { session })
+        if (session?.user) {
+          setUser(session.user)
+            console.log('AuthProvider: calling fetchProfile for', session.user.id)
+            const profile = await fetchProfile(session.user.id)
+        }
+        setLoading(false)
+      })
+      .catch((err) => {
+        // Ensure loading is always cleared even if getSession rejects
+        console.error('AuthProvider: getSession failed', err)
+        setLoading(false)
+      })
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('AuthProvider: onAuthStateChange', { event, session })
       if (event === 'SIGNED_IN' && session?.user) {
         setUser(session.user)
-        await fetchProfile(session.user.id)
+        // DO NOT await here — Supabase awaits all onAuthStateChange subscribers
+        // internally before resolving signIn(). Awaiting fetchProfile here would
+        // block signIn() from ever returning if the DB query hangs.
+        fetchProfile(session.user.id)
       } else if (event === 'SIGNED_OUT') {
         setUser(null)
         setProfile(null)
@@ -56,6 +76,11 @@ export function AuthProvider({ children }) {
         setUser(session.user)
       }
     })
+
+      // debug: log right before attempting to fetch profile
+      // (this helps verify we actually reach the call site)
+      // Note: onAuthStateChange handler already calls fetchProfile; this is extra visibility.
+      // (No-op here — actual logging added below where fetchProfile is called.)
 
     return () => subscription.unsubscribe()
   }, [])

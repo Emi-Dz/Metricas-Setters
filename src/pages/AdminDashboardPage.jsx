@@ -9,6 +9,7 @@ import { MetricsAreaChart } from '../components/metrics/MetricsAreaChart'
 import { MetricsTable } from '../components/metrics/MetricsTable'
 import { DateRangePicker } from '../components/metrics/DateRangePicker'
 import { NotasPanel } from '../components/admin/NotasPanel'
+import { PeriodSummary } from '../components/metrics/PeriodSummary'
 import { ErrorMessage } from '../components/ui/ErrorMessage'
 import { formatDate, subDays } from '../lib/dateUtils'
 
@@ -111,8 +112,15 @@ export function AdminDashboardPage() {
           <MetricsAreaChart data={data} />
           <MetricsTable data={data} loading={metricsLoading} />
 
+          {/* Period Summary */}
+          <PeriodSummary
+            data={data}
+            totals={totals}
+            clienteId={selectedClienteId}
+          />
+
           {/* Notes (admin = editable) */}
-          <NotasPanel clienteId={selectedClienteId} readOnly={false} />
+          <NotasPanel clienteId={selectedClienteId} readOnly={false} fromDate={range.from} toDate={range.to} />
         </>
       )}
     </AppShell>

@@ -31,12 +31,14 @@ function IconPlus() {
 /**
  * Notes panel shown in both admin (editable) and client (read-only) views.
  *
- * @param {string} clienteId - The client whose notes to display
- * @param {boolean} readOnly - If true, hides add/edit/delete controls
+ * @param {string}  clienteId - The client whose notes to display
+ * @param {boolean} readOnly  - If true, hides add/edit/delete controls
+ * @param {string}  fromDate  - ISO date 'YYYY-MM-DD' — dashboard range start (for filtering)
+ * @param {string}  toDate    - ISO date 'YYYY-MM-DD' — dashboard range end (for filtering)
  */
-export function NotasPanel({ clienteId, readOnly = false }) {
+export function NotasPanel({ clienteId, readOnly = false, fromDate, toDate }) {
   const { notas, loading, error, createNota, updateNota, deleteNota } =
-    useNotas(clienteId)
+    useNotas(clienteId, fromDate, toDate)
 
   const [formOpen, setFormOpen] = useState(false)
   const [editingNota, setEditingNota] = useState(null)
@@ -63,15 +65,24 @@ export function NotasPanel({ clienteId, readOnly = false }) {
     setEditingNota(null)
   }
 
+  const hasDateFilter = fromDate && toDate
+
   return (
     <>
       <div className="notas-panel">
         <div className="notas-panel__header">
-          <h3 className="notas-panel__title">
-            <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              📝 Notas del equipo
-            </span>
-          </h3>
+          <div>
+            <h3 className="notas-panel__title">
+              <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                📝 Notas del equipo
+              </span>
+            </h3>
+            {hasDateFilter && (
+              <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-secondary)', marginTop: '2px' }}>
+                Mostrando notas del período seleccionado
+              </p>
+            )}
+          </div>
           {!readOnly && (
             <Button
               variant="primary"
@@ -100,7 +111,9 @@ export function NotasPanel({ clienteId, readOnly = false }) {
               title="Sin notas"
               description={
                 readOnly
-                  ? 'El equipo aún no publicó notas para tu cuenta.'
+                  ? hasDateFilter
+                    ? 'No hay notas publicadas para este período.'
+                    : 'El equipo aún no publicó notas para tu cuenta.'
                   : 'Todavía no hay notas para este cliente.'
               }
               action={
@@ -123,6 +136,7 @@ export function NotasPanel({ clienteId, readOnly = false }) {
               <NotaCard
                 key={nota.id}
                 nota={nota}
+                readOnly={readOnly}
                 onEdit={!readOnly ? handleEdit : undefined}
                 onDelete={!readOnly ? handleDelete : undefined}
               />
@@ -137,6 +151,7 @@ export function NotasPanel({ clienteId, readOnly = false }) {
           initial={editingNota}
           onSave={handleSave}
           onClose={handleFormClose}
+          defaultPeriod={hasDateFilter ? { from: fromDate, to: toDate } : undefined}
         />
       )}
     </>

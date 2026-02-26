@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
+import { supabase } from '../lib/supabaseClient'
 import { Button } from '../components/ui/Button'
 import { ErrorMessage } from '../components/ui/ErrorMessage'
 
@@ -20,23 +20,14 @@ function LogoIcon() {
 }
 
 export function LoginPage() {
-  const { signIn, user, role, loading } = useAuth()
-  const navigate = useNavigate()
+  const { signIn, signOut } = useAuth()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
 
-  // Redirect if already authenticated
-  useEffect(() => {
-    if (!loading && user && role) {
-      navigate(role === 'admin' ? '/admin' : '/dashboard', { replace: true })
-    }
-  }, [user, role, loading, navigate])
-
-  const handleSubmit = async (e) => {
-    e.preventDefault()
+  const doLogin = async ({ forceSignOut = false } = {}) => {
     if (!email.trim() || !password) {
       setError('Completá tu email y contraseña.')
       return
@@ -45,22 +36,67 @@ export function LoginPage() {
     setError(null)
     setSubmitting(true)
 
-    const { error: signInError } = await signIn(email.trim(), password)
+    try {
+      if (forceSignOut) {
+        await signOut()
+      }
 
-    if (signInError) {
-      setError('Credenciales incorrectas. Verificá tu email y contraseña.')
+      // Step 1: authenticate
+      const { data: authData, error: authError } = await signIn(
+        email.trim(),
+        password
+      )
+      console.log('[Login] signIn:', { userId: authData?.session?.user?.id, authError })
+
+      if (authError) {
+        setError('Credenciales incorrectas. Verificá tu email y contraseña.')
+        setSubmitting(false)
+        return
+      }
+
+      if (!authData?.session?.user) {
+        setError('No se recibió sesión. Intentá nuevamente.')
+        setSubmitting(false)
+        return
+      }
+
+      // Step 2: fetch role directly — no state, no timing issues
+      const userId = authData.session.user.id
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', userId)
+        .single()
+
+      console.log('[Login] profile:', { profile, profileError })
+
+      if (profileError || !profile?.role) {
+        setError(
+          'Tu perfil no fue encontrado. Contactá al administrador.'
+        )
+        setSubmitting(false)
+        return
+      }
+
+      // Step 3: hard redirect — bypasses React Router timing entirely
+      const dest = profile.role === 'admin' ? '/admin' : '/dashboard'
+      console.log('[Login] redirecting to', dest)
+      window.location.replace(dest)
+    } catch (err) {
+      console.error('[Login] unexpected error:', err)
+      setError('Error inesperado. Intentá nuevamente.')
       setSubmitting(false)
-      return
     }
+  }
 
-    // AuthContext onAuthStateChange will trigger and profile will be fetched.
-    // The useEffect above will then redirect based on role.
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    doLogin()
   }
 
   return (
     <div className="login-page">
       <div className="login-card">
-        {/* Brand */}
         <div className="login-brand">
           <div className="login-brand__logo">
             <LogoIcon />
@@ -71,7 +107,6 @@ export function LoginPage() {
           </p>
         </div>
 
-        {/* Form */}
         <form className="login-form" onSubmit={handleSubmit} noValidate>
           {error && <ErrorMessage message={error} />}
 
@@ -117,6 +152,19 @@ export function LoginPage() {
           >
             Ingresar
           </Button>
+
+          {error && (
+            <Button
+              type="button"
+              variant="secondary"
+              size="lg"
+              loading={submitting}
+              className="login-submit"
+              onClick={() => doLogin({ forceSignOut: true })}
+            >
+              Forzar inicio de sesión
+            </Button>
+          )}
         </form>
       </div>
     </div>

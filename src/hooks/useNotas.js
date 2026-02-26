@@ -1,12 +1,16 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabaseClient'
 
 /**
  * CRUD hook for the notas table.
  * Admin can create/update/delete.
  * Both admin and client can read (RLS enforced on Supabase side).
+ *
+ * @param {string}      clienteId
+ * @param {string|null} fromDate  - ISO date string 'YYYY-MM-DD' (dashboard range start)
+ * @param {string|null} toDate    - ISO date string 'YYYY-MM-DD' (dashboard range end)
  */
-export function useNotas(clienteId) {
+export function useNotas(clienteId, fromDate = null, toDate = null) {
   const [notas, setNotas] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -35,7 +39,19 @@ export function useNotas(clienteId) {
     fetchNotas()
   }, [clienteId])
 
-  const createNota = async ({ titulo, contenido }) => {
+  // Client-side filtering by date overlap.
+  // A nota is visible if:
+  //   - it has no period (periodo_desde is null) → always visible (legacy)
+  //   - its period overlaps with [fromDate, toDate]: periodo_desde <= toDate && periodo_hasta >= fromDate
+  const filteredNotas = useMemo(() => {
+    if (!fromDate || !toDate) return notas
+    return notas.filter((nota) => {
+      if (!nota.periodo_desde) return true
+      return nota.periodo_desde <= toDate && nota.periodo_hasta >= fromDate
+    })
+  }, [notas, fromDate, toDate])
+
+  const createNota = async ({ titulo, contenido, periodo_desde = null, periodo_hasta = null }) => {
     const {
       data: { user },
     } = await supabase.auth.getUser()
@@ -47,6 +63,8 @@ export function useNotas(clienteId) {
       autor_id: user?.id,
       titulo,
       contenido,
+      periodo_desde,
+      periodo_hasta,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       _optimistic: true,
@@ -62,6 +80,8 @@ export function useNotas(clienteId) {
         autor_id: user?.id,
         titulo,
         contenido,
+        periodo_desde,
+        periodo_hasta,
       })
       .select()
       .single()
@@ -78,7 +98,7 @@ export function useNotas(clienteId) {
     return { data }
   }
 
-  const updateNota = async (notaId, { titulo, contenido }) => {
+  const updateNota = async (notaId, { titulo, contenido, periodo_desde = null, periodo_hasta = null }) => {
     // Save previous for rollback
     const previous = notas.find((n) => n.id === notaId)
 
@@ -86,14 +106,14 @@ export function useNotas(clienteId) {
     setNotas((prev) =>
       prev.map((n) =>
         n.id === notaId
-          ? { ...n, titulo, contenido, updated_at: new Date().toISOString() }
+          ? { ...n, titulo, contenido, periodo_desde, periodo_hasta, updated_at: new Date().toISOString() }
           : n
       )
     )
 
     const { data, error: err } = await supabase
       .from('notas')
-      .update({ titulo, contenido, updated_at: new Date().toISOString() })
+      .update({ titulo, contenido, periodo_desde, periodo_hasta, updated_at: new Date().toISOString() })
       .eq('id', notaId)
       .select()
       .single()
@@ -133,5 +153,5 @@ export function useNotas(clienteId) {
     return {}
   }
 
-  return { notas, loading, error, createNota, updateNota, deleteNota }
+  return { notas: filteredNotas, loading, error, createNota, updateNota, deleteNota }
 }

@@ -1,4 +1,4 @@
-import { formatDateTime } from '../../lib/dateUtils'
+import { formatDateTime, formatDisplayDate } from '../../lib/dateUtils'
 
 function IconEdit() {
   return (
@@ -21,21 +21,33 @@ function IconTrash() {
   )
 }
 
+/** Detect whether the content string contains HTML tags */
+function isHtml(str) {
+  return typeof str === 'string' && /<[a-z][\s\S]*>/i.test(str)
+}
+
 /**
  * Single note display card.
  *
- * @param {Object} nota - Note object from DB
- * @param {Function} onEdit - Called when edit button is clicked (undefined = read-only)
+ * @param {Object}   nota     - Note object from DB
+ * @param {boolean}  readOnly - If true, shows full content (no line-clamp) and hides edit/delete
+ * @param {Function} onEdit   - Called when edit button is clicked (undefined = read-only)
  * @param {Function} onDelete - Called when delete button is clicked (undefined = read-only)
  */
-export function NotaCard({ nota, onEdit, onDelete }) {
-  const isReadOnly = !onEdit && !onDelete
+export function NotaCard({ nota, readOnly = false, onEdit, onDelete }) {
+  const hasPeriod = nota.periodo_desde && nota.periodo_hasta
+  const contentIsHtml = isHtml(nota.contenido)
+
+  const contentClass = [
+    contentIsHtml ? 'nota-card__prose' : 'nota-card__content',
+    readOnly ? 'nota-card__content--full' : '',
+  ].filter(Boolean).join(' ')
 
   return (
     <div className="nota-card">
       <div className="nota-card__header">
         <h4 className="nota-card__title">{nota.titulo}</h4>
-        {!isReadOnly && (
+        {!readOnly && (
           <div className="nota-card__actions">
             {onEdit && (
               <button
@@ -62,7 +74,20 @@ export function NotaCard({ nota, onEdit, onDelete }) {
         )}
       </div>
 
-      <p className="nota-card__content">{nota.contenido}</p>
+      {hasPeriod && (
+        <span className="nota-card__period">
+          📅 {formatDisplayDate(nota.periodo_desde)} – {formatDisplayDate(nota.periodo_hasta)}
+        </span>
+      )}
+
+      {contentIsHtml ? (
+        <div
+          className={contentClass}
+          dangerouslySetInnerHTML={{ __html: nota.contenido }}
+        />
+      ) : (
+        <p className={contentClass}>{nota.contenido}</p>
+      )}
 
       <p className="nota-card__meta">
         {nota.updated_at && nota.updated_at !== nota.created_at

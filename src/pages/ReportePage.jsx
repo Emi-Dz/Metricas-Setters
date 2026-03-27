@@ -16,6 +16,16 @@ import { ErrorMessage } from '../components/ui/ErrorMessage'
 import { EmptyState } from '../components/ui/EmptyState'
 import { formatDisplayDate } from '../lib/dateUtils'
 
+const PRINT_STYLES = `
+@media print {
+  .sidebar, .topbar, .no-print { display: none !important; }
+  .app-shell__main { padding: 0 !important; }
+  body { background: white !important; }
+  .card { box-shadow: none !important; border: 1px solid #e5e7eb !important; }
+  .report-section { break-inside: avoid; page-break-inside: avoid; }
+}
+`
+
 function IconReport() {
   return (
     <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -23,7 +33,6 @@ function IconReport() {
       <polyline points="14 2 14 8 20 8" />
       <line x1="16" y1="13" x2="8" y2="13" />
       <line x1="16" y1="17" x2="8" y2="17" />
-      <polyline points="10 9 9 9 8 9" />
     </svg>
   )
 }
@@ -61,12 +70,155 @@ function PeriodSelector({ reportes, selectedPeriodo, onChange }) {
         {reportes.map((r) => (
           <option key={r.id} value={r.periodo_inicio}>
             {formatDisplayDate(r.periodo_inicio)} — {formatDisplayDate(r.periodo_fin)}
+            {r.aprobado === false ? ' (borrador)' : ''}
           </option>
         ))}
       </select>
     </div>
   )
 }
+
+// ─── Edit form ────────────────────────────────────────────────────────────────
+
+const textareaStyle = {
+  width: '100%',
+  padding: 'var(--space-3)',
+  border: '1px solid var(--color-border)',
+  borderRadius: 'var(--radius-md)',
+  background: 'var(--color-surface)',
+  color: 'var(--color-text-primary)',
+  fontSize: 'var(--font-size-sm)',
+  lineHeight: 1.6,
+  resize: 'vertical',
+  fontFamily: 'inherit',
+  boxSizing: 'border-box',
+}
+
+const labelStyle = {
+  display: 'block',
+  marginBottom: 'var(--space-1)',
+  fontWeight: 'var(--font-weight-semibold)',
+  fontSize: 'var(--font-size-sm)',
+  color: 'var(--color-text-primary)',
+}
+
+function ReporteEditForm({ reporte, onSave, onCancel, saving }) {
+  const [fields, setFields] = useState({
+    resumen_ejecutivo: reporte.resumen_ejecutivo || '',
+    analisis_embudo: reporte.analisis_embudo || '',
+    conclusion: reporte.conclusion || '',
+    patrones_detectados: JSON.stringify(reporte.patrones_detectados || [], null, 2),
+    brechas: JSON.stringify(reporte.brechas || [], null, 2),
+    recomendaciones: JSON.stringify(reporte.recomendaciones || [], null, 2),
+    analisis_llamadas: JSON.stringify(reporte.analisis_llamadas || {}, null, 2),
+    control_tecnico: JSON.stringify(reporte.control_tecnico || {}, null, 2),
+  })
+  const [jsonError, setJsonError] = useState(null)
+
+  const set = (key) => (e) => setFields((f) => ({ ...f, [key]: e.target.value }))
+
+  const handleSave = () => {
+    try {
+      const parsed = {
+        resumen_ejecutivo: fields.resumen_ejecutivo,
+        analisis_embudo: fields.analisis_embudo,
+        conclusion: fields.conclusion,
+        patrones_detectados: JSON.parse(fields.patrones_detectados),
+        brechas: JSON.parse(fields.brechas),
+        recomendaciones: JSON.parse(fields.recomendaciones),
+        analisis_llamadas: JSON.parse(fields.analisis_llamadas),
+        control_tecnico: JSON.parse(fields.control_tecnico),
+      }
+      setJsonError(null)
+      onSave(parsed)
+    } catch (e) {
+      setJsonError('JSON inválido: ' + e.message)
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
+      {jsonError && <ErrorMessage message={jsonError} />}
+
+      <div>
+        <label style={labelStyle}>Resumen Ejecutivo</label>
+        <textarea rows={5} style={textareaStyle} value={fields.resumen_ejecutivo} onChange={set('resumen_ejecutivo')} />
+      </div>
+
+      <div>
+        <label style={labelStyle}>Análisis del Embudo</label>
+        <textarea rows={4} style={textareaStyle} value={fields.analisis_embudo} onChange={set('analisis_embudo')} />
+      </div>
+
+      <div>
+        <label style={labelStyle}>Conclusión</label>
+        <textarea rows={4} style={textareaStyle} value={fields.conclusion} onChange={set('conclusion')} />
+      </div>
+
+      <div>
+        <label style={labelStyle}>Patrones detectados (JSON)</label>
+        <textarea rows={8} style={{ ...textareaStyle, fontFamily: 'monospace' }} value={fields.patrones_detectados} onChange={set('patrones_detectados')} />
+      </div>
+
+      <div>
+        <label style={labelStyle}>Brechas (JSON)</label>
+        <textarea rows={6} style={{ ...textareaStyle, fontFamily: 'monospace' }} value={fields.brechas} onChange={set('brechas')} />
+      </div>
+
+      <div>
+        <label style={labelStyle}>Recomendaciones (JSON)</label>
+        <textarea rows={6} style={{ ...textareaStyle, fontFamily: 'monospace' }} value={fields.recomendaciones} onChange={set('recomendaciones')} />
+      </div>
+
+      <div>
+        <label style={labelStyle}>Análisis de llamadas (JSON)</label>
+        <textarea rows={10} style={{ ...textareaStyle, fontFamily: 'monospace' }} value={fields.analisis_llamadas} onChange={set('analisis_llamadas')} />
+      </div>
+
+      <div>
+        <label style={labelStyle}>Control Técnico (JSON)</label>
+        <textarea rows={6} style={{ ...textareaStyle, fontFamily: 'monospace' }} value={fields.control_tecnico} onChange={set('control_tecnico')} />
+      </div>
+
+      <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          style={{
+            padding: 'var(--space-2) var(--space-5)',
+            background: 'var(--color-primary-500)',
+            color: '#fff',
+            border: 'none',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 'var(--font-size-sm)',
+            fontWeight: 'var(--font-weight-semibold)',
+            cursor: saving ? 'not-allowed' : 'pointer',
+            opacity: saving ? 0.7 : 1,
+          }}
+        >
+          {saving ? 'Guardando…' : 'Guardar cambios'}
+        </button>
+        <button
+          onClick={onCancel}
+          disabled={saving}
+          style={{
+            padding: 'var(--space-2) var(--space-5)',
+            background: 'transparent',
+            color: 'var(--color-text-secondary)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 'var(--font-size-sm)',
+            cursor: 'pointer',
+          }}
+        >
+          Cancelar
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Report display ────────────────────────────────────────────────────────────
 
 function ReporteContent({ reporte }) {
   const mc = reporte.metricas_calculadas || {}
@@ -84,12 +236,7 @@ function ReporteContent({ reporte }) {
       {/* 1. Resumen Ejecutivo */}
       {reporte.resumen_ejecutivo && (
         <ReporteSeccion numero="1" titulo="Resumen Ejecutivo">
-          <p style={{
-            margin: 0,
-            color: 'var(--color-text-secondary)',
-            fontSize: 'var(--font-size-sm)',
-            lineHeight: 1.7,
-          }}>
+          <p style={{ margin: 0, color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)', lineHeight: 1.7 }}>
             {reporte.resumen_ejecutivo}
           </p>
         </ReporteSeccion>
@@ -145,11 +292,10 @@ function ReporteContent({ reporte }) {
         </ReporteSeccion>
       )}
 
-      {/* 6, 7, 9. Patrones, Brechas y Recomendaciones */}
+      {/* 6 & 7. Patrones y Brechas */}
       <ReportePatrones
         patrones={reporte.patrones_detectados || []}
         brechas={reporte.brechas || []}
-        recomendaciones={reporte.recomendaciones || []}
       />
 
       {/* 8. Control Técnico */}
@@ -180,6 +326,19 @@ function ReporteContent({ reporte }) {
         </ReporteSeccion>
       )}
 
+      {/* 9. Recomendaciones Estratégicas */}
+      {(reporte.recomendaciones || []).length > 0 && (
+        <ReporteSeccion numero="9" titulo="Recomendaciones Estratégicas">
+          <ul style={{ margin: 0, paddingLeft: 'var(--space-5)', display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+            {reporte.recomendaciones.map((r, i) => (
+              <li key={i} style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)' }}>
+                {r}
+              </li>
+            ))}
+          </ul>
+        </ReporteSeccion>
+      )}
+
       {/* 10. Análisis de Llamadas GHL */}
       <ReporteLlamadas analisis_llamadas={reporte.analisis_llamadas || {}} />
 
@@ -205,6 +364,8 @@ function ReporteContent({ reporte }) {
   )
 }
 
+// ─── Page ──────────────────────────────────────────────────────────────────────
+
 export function ReportePage() {
   const { profile, role } = useAuth()
   const isAdmin = role === 'admin'
@@ -218,34 +379,51 @@ export function ReportePage() {
     isAdmin ? (clienteIdFromUrl || null) : (profile?.cliente_id || null)
   )
   const [selectedPeriodo, setSelectedPeriodo] = useState(null)
+  const [editing, setEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [approving, setApproving] = useState(false)
 
   // For admin: sync client from URL
   useEffect(() => {
-    if (isAdmin && clienteIdFromUrl) {
-      setSelectedClienteId(clienteIdFromUrl)
-    }
+    if (isAdmin && clienteIdFromUrl) setSelectedClienteId(clienteIdFromUrl)
   }, [isAdmin, clienteIdFromUrl])
 
   // For client: use profile's cliente_id once loaded
   useEffect(() => {
-    if (!isAdmin && profile?.cliente_id) {
-      setSelectedClienteId(profile.cliente_id)
-    }
+    if (!isAdmin && profile?.cliente_id) setSelectedClienteId(profile.cliente_id)
   }, [isAdmin, profile])
 
   const handleClientChange = (id) => {
     setSelectedClienteId(id)
     setSelectedPeriodo(null)
+    setEditing(false)
     if (id) setSearchParams({ cliente: id })
     else setSearchParams({})
   }
 
-  const { reportes, reporte, loading, error } = useReportesQuincenales(
-    selectedClienteId,
-    selectedPeriodo
-  )
+  const { reportes, reporte, loading, error, aprobarReporte, updateReporte } =
+    useReportesQuincenales(selectedClienteId, selectedPeriodo, role)
+
+  // Exit edit mode when report changes
+  useEffect(() => {
+    setEditing(false)
+  }, [reporte?.id])
+
+  const handleSaveEdit = async (fields) => {
+    setSaving(true)
+    const { error: err } = await updateReporte(reporte.id, fields)
+    setSaving(false)
+    if (!err) setEditing(false)
+  }
+
+  const handleAprobar = async () => {
+    setApproving(true)
+    await aprobarReporte(reporte.id)
+    setApproving(false)
+  }
 
   const selectedCliente = clientes.find((c) => c.id === selectedClienteId)
+  const isDraft = reporte && reporte.aprobado === false
 
   return (
     <AppShell
@@ -258,8 +436,10 @@ export function ReportePage() {
           : 'Tu reporte quincenal'
       }
     >
+      <style>{PRINT_STYLES}</style>
+
       {/* Toolbar */}
-      <div className="dashboard-toolbar">
+      <div className="dashboard-toolbar no-print">
         {isAdmin && (
           <ClientSelector
             clientes={clientes}
@@ -268,18 +448,37 @@ export function ReportePage() {
             loading={clientesLoading}
           />
         )}
-        {selectedClienteId && reportes.length > 0 && (
-          <PeriodSelector
-            reportes={reportes}
-            selectedPeriodo={selectedPeriodo}
-            onChange={setSelectedPeriodo}
-          />
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
+          {selectedClienteId && reportes.length > 0 && (
+            <PeriodSelector
+              reportes={reportes}
+              selectedPeriodo={selectedPeriodo}
+              onChange={(p) => { setSelectedPeriodo(p); setEditing(false) }}
+            />
+          )}
+          {reporte && !editing && (
+            <button
+              onClick={() => window.print()}
+              style={{
+                padding: 'var(--space-2) var(--space-4)',
+                background: 'transparent',
+                color: 'var(--color-text-secondary)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-md)',
+                fontSize: 'var(--font-size-sm)',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              ↓ Descargar PDF
+            </button>
+          )}
+        </div>
       </div>
 
       {error && <ErrorMessage message={`Error al cargar el reporte: ${error}`} />}
 
-      {/* Loading state */}
+      {/* Loading */}
       {loading && (
         <div style={{ display: 'flex', justifyContent: 'center', padding: 'var(--space-12)' }}>
           <Spinner />
@@ -297,17 +496,87 @@ export function ReportePage() {
         </div>
       )}
 
-      {/* No reports yet */}
+      {/* No reports */}
       {!loading && selectedClienteId && reportes.length === 0 && (
         <EmptyState
           icon={<IconReport />}
-          title="Sin reportes aún"
-          description="El primer reporte se generará automáticamente al finalizar el período quincenal."
+          title={isAdmin ? 'Sin reportes aún' : 'El reporte estará disponible pronto'}
+          description={
+            isAdmin
+              ? 'El primer reporte se generará automáticamente al finalizar el período quincenal.'
+              : 'Tu reporte quincenal será publicado por el equipo al finalizar el período.'
+          }
         />
       )}
 
-      {/* Report content */}
-      {!loading && reporte && <ReporteContent reporte={reporte} />}
+      {/* Admin draft banner + actions */}
+      {!loading && reporte && isAdmin && isDraft && !editing && (
+        <div
+          className="no-print"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 'var(--space-3)',
+            padding: 'var(--space-3) var(--space-4)',
+            background: '#fef9c3',
+            border: '1px solid #fde047',
+            borderRadius: 'var(--radius-md)',
+            marginBottom: 'var(--space-4)',
+          }}
+        >
+          <span style={{ fontSize: 'var(--font-size-sm)', fontWeight: 'var(--font-weight-semibold)', color: '#713f12' }}>
+            ⚠ Borrador — pendiente de aprobación. Los clientes no pueden verlo.
+          </span>
+          <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+            <button
+              onClick={() => setEditing(true)}
+              style={{
+                padding: 'var(--space-2) var(--space-4)',
+                background: 'transparent',
+                color: '#713f12',
+                border: '1px solid #fde047',
+                borderRadius: 'var(--radius-md)',
+                fontSize: 'var(--font-size-sm)',
+                cursor: 'pointer',
+              }}
+            >
+              Editar reporte
+            </button>
+            <button
+              onClick={handleAprobar}
+              disabled={approving}
+              style={{
+                padding: 'var(--space-2) var(--space-4)',
+                background: 'var(--color-primary-500)',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 'var(--radius-md)',
+                fontSize: 'var(--font-size-sm)',
+                fontWeight: 'var(--font-weight-semibold)',
+                cursor: approving ? 'not-allowed' : 'pointer',
+                opacity: approving ? 0.7 : 1,
+              }}
+            >
+              {approving ? 'Aprobando…' : 'Aprobar y publicar'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Admin: edit form */}
+      {!loading && reporte && editing && (
+        <ReporteEditForm
+          reporte={reporte}
+          onSave={handleSaveEdit}
+          onCancel={() => setEditing(false)}
+          saving={saving}
+        />
+      )}
+
+      {/* Report display */}
+      {!loading && reporte && !editing && <ReporteContent reporte={reporte} />}
     </AppShell>
   )
 }

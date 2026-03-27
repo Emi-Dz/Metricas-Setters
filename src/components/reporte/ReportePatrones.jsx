@@ -1,10 +1,11 @@
 import ReporteSeccion from './ReporteSeccion'
 
 /**
- * Muestra los patrones detectados por IA con sus oportunidades,
- * las brechas identificadas y las recomendaciones estratégicas.
+ * Muestra los patrones detectados por IA con sus oportunidades
+ * y las brechas identificadas. Las recomendaciones se renderizan
+ * por separado en ReportePage para mantener el orden correcto.
  */
-export default function ReportePatrones({ patrones = [], brechas = [], recomendaciones = [] }) {
+export default function ReportePatrones({ patrones = [], brechas = [] }) {
   return (
     <>
       {patrones.length > 0 && (
@@ -51,27 +52,6 @@ export default function ReportePatrones({ patrones = [], brechas = [], recomenda
         </ReporteSeccion>
       )}
 
-      {recomendaciones.length > 0 && (
-        <ReporteSeccion numero="9" titulo="Recomendaciones Estratégicas">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-            {recomendaciones.map((r, i) => (
-              <div key={i}>
-                <p style={{
-                  margin: '0 0 var(--space-1)',
-                  fontWeight: 'var(--font-weight-semibold)',
-                  color: 'var(--color-text-primary)',
-                  fontSize: 'var(--font-size-sm)',
-                }}>
-                  {r.numero ? `${r.numero}. ` : ''}{r.titulo}
-                </p>
-                <p style={{ margin: 0, color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)' }}>
-                  {r.descripcion}
-                </p>
-              </div>
-            ))}
-          </div>
-        </ReporteSeccion>
-      )}
     </>
   )
 }

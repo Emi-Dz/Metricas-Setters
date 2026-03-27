@@ -1,23 +1,39 @@
 import ReporteSeccion from './ReporteSeccion'
 
-const INDICADORES = [
-  { key: 'total', label: 'Total llamadas' },
-  { key: 'interes_alto', label: 'Interés alto' },
-  { key: 'interes_medio', label: 'Interés medio' },
-  { key: 'interes_bajo', label: 'Interés bajo' },
+// Indicadores fijos de GHL (siempre se muestran si hay datos)
+const INDICADORES_GHL = [
+  { key: 'total',     label: 'Total llamadas' },
+  { key: 'asistio',   label: 'Asistió' },
+  { key: 'confirmada',label: 'Confirmada (pendiente)' },
+  { key: 'cancelada', label: 'Cancelada' },
+  { key: 'no_asistio',label: 'No asistió' },
+]
+
+// Indicadores de interés: solo se muestran si el valor es > 0
+const INDICADORES_INTERES = [
+  { key: 'interes_alto',      label: 'Interés alto' },
+  { key: 'interes_medio',     label: 'Interés medio' },
+  { key: 'interes_bajo',      label: 'Interés bajo' },
   { key: 'cierres_probables', label: 'Cierres probables' },
 ]
 
 /**
- * Sección de análisis cualitativo de llamadas desde GHL.
+ * Sección 10: Análisis Cualitativo de Llamadas.
  * analisis_llamadas: { perfil: string[], objecion_principal: string, estado: {...} }
  */
 export default function ReporteLlamadas({ analisis_llamadas = {} }) {
   const { perfil = [], objecion_principal, estado = {} } = analisis_llamadas
 
   const tieneContenido = perfil.length > 0 || objecion_principal || Object.keys(estado).length > 0
-
   if (!tieneContenido) return null
+
+  // Filtrar indicadores de interés que tengan valor > 0
+  const indicadoresInteres = INDICADORES_INTERES.filter(({ key }) => Number(estado[key]) > 0)
+
+  const filas = [
+    ...INDICADORES_GHL,
+    ...indicadoresInteres,
+  ]
 
   return (
     <ReporteSeccion numero="10" titulo="Análisis Cualitativo de Llamadas">
@@ -69,23 +85,19 @@ export default function ReporteLlamadas({ analisis_llamadas = {} }) {
             }}>
               Estado Comercial
             </p>
-            <table style={{
-              width: '100%',
-              borderCollapse: 'collapse',
-              fontSize: 'var(--font-size-sm)',
-            }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--font-size-sm)' }}>
               <thead>
                 <tr style={{ background: 'var(--color-primary-500)' }}>
-                  <th style={{ padding: 'var(--space-2) var(--space-3)', textAlign: 'left', color: '#fff', fontWeight: 'var(--font-weight-semibold)', borderRadius: 'var(--radius-sm) 0 0 0' }}>
+                  <th style={{ padding: 'var(--space-2) var(--space-3)', textAlign: 'left', color: '#fff', fontWeight: 'var(--font-weight-semibold)' }}>
                     Indicador
                   </th>
-                  <th style={{ padding: 'var(--space-2) var(--space-3)', textAlign: 'right', color: '#fff', fontWeight: 'var(--font-weight-semibold)', borderRadius: '0 var(--radius-sm) 0 0' }}>
+                  <th style={{ padding: 'var(--space-2) var(--space-3)', textAlign: 'right', color: '#fff', fontWeight: 'var(--font-weight-semibold)' }}>
                     Valor
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {INDICADORES.map(({ key, label }, i) => (
+                {filas.map(({ key, label }, i) => (
                   <tr key={key} style={{ background: i % 2 === 0 ? 'var(--color-surface-alt, #f9f9f9)' : 'var(--color-surface)' }}>
                     <td style={{ padding: 'var(--space-2) var(--space-3)', color: 'var(--color-text-secondary)' }}>
                       {label}

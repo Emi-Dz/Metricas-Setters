@@ -6,7 +6,6 @@ import { MetricCardGrid } from '../components/metrics/MetricCardGrid'
 import { MetricsAreaChart } from '../components/metrics/MetricsAreaChart'
 import { MetricsTable } from '../components/metrics/MetricsTable'
 import { DateRangePicker } from '../components/metrics/DateRangePicker'
-import { NotasPanel } from '../components/admin/NotasPanel'
 import { PeriodSummary } from '../components/metrics/PeriodSummary'
 import { ErrorMessage } from '../components/ui/ErrorMessage'
 import { formatDate, subDays } from '../lib/dateUtils'
@@ -46,7 +45,7 @@ export function ClientDashboardPage() {
 
   return (
     <AppShell
-      title="Mi Dashboard"
+      title="Métricas en Tiempo Real"
       subtitle="Tus métricas de performance"
     >
       {/* Header + Date Picker */}
@@ -79,10 +78,6 @@ export function ClientDashboardPage() {
         <PeriodSummary data={data} totals={totals} clienteId={clienteId} />
       )}
 
-      {/* Notes (read-only for clients) */}
-      {clienteId && (
-        <NotasPanel clienteId={clienteId} readOnly fromDate={range.from} toDate={range.to} />
-      )}
     </AppShell>
   )
 }

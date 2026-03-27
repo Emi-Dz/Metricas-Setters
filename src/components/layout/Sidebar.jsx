@@ -104,7 +104,7 @@ export function Sidebar({ isOpen, onClose }) {
               }
             >
               <IconGrid />
-              Mi Dashboard
+              Métricas en Tiempo Real
             </NavLink>
             <NavLink
               to="/reporte"

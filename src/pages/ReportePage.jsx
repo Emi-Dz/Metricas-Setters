@@ -412,25 +412,33 @@ export function ReportePage() {
         backgroundColor: '#ffffff',
       })
 
-      const imgData = canvas.toDataURL('image/png')
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
 
       const marginX = 12
       const marginY = 12
       const pdfWidth = pdf.internal.pageSize.getWidth() - marginX * 2
       const pdfHeight = pdf.internal.pageSize.getHeight() - marginY * 2
-      const imgRatio = canvas.height / canvas.width
-      const scaledHeight = pdfWidth * imgRatio
 
-      if (scaledHeight <= pdfHeight) {
-        pdf.addImage(imgData, 'PNG', marginX, marginY, pdfWidth, scaledHeight)
-      } else {
-        let yOffset = 0
-        while (yOffset < scaledHeight) {
-          if (yOffset > 0) pdf.addPage()
-          pdf.addImage(imgData, 'PNG', marginX, marginY - yOffset, pdfWidth, scaledHeight)
-          yOffset += pdfHeight
-        }
+      // pixels that fit in one PDF page
+      const pixelsPerMm = canvas.width / pdfWidth
+      const pageHeightPx = Math.floor(pdfHeight * pixelsPerMm)
+
+      let yPx = 0
+      while (yPx < canvas.height) {
+        if (yPx > 0) pdf.addPage()
+
+        const sliceHeightPx = Math.min(pageHeightPx, canvas.height - yPx)
+
+        // Crop canvas to this page's slice
+        const pageCanvas = document.createElement('canvas')
+        pageCanvas.width = canvas.width
+        pageCanvas.height = sliceHeightPx
+        pageCanvas.getContext('2d').drawImage(canvas, 0, -yPx)
+
+        const sliceHeightMm = sliceHeightPx / pixelsPerMm
+        pdf.addImage(pageCanvas.toDataURL('image/png'), 'PNG', marginX, marginY, pdfWidth, sliceHeightMm)
+
+        yPx += sliceHeightPx
       }
 
       const clienteNombre = (selectedCliente?.nombre || 'reporte').replace(/\s+/g, '_')

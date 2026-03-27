@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useClientes } from '../hooks/useClientes'
@@ -393,6 +393,54 @@ export function ReportePage() {
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [approving, setApproving] = useState(false)
+  const [generatingPDF, setGeneratingPDF] = useState(false)
+
+  const reportContentRef = useRef(null)
+
+  const handleDownloadPDF = async () => {
+    if (!reportContentRef.current || !reporte) return
+    setGeneratingPDF(true)
+    try {
+      const { jsPDF } = await import('jspdf')
+      const html2canvas = (await import('html2canvas')).default
+
+      const element = reportContentRef.current
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+      })
+
+      const imgData = canvas.toDataURL('image/png')
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+
+      const marginX = 12
+      const marginY = 12
+      const pdfWidth = pdf.internal.pageSize.getWidth() - marginX * 2
+      const pdfHeight = pdf.internal.pageSize.getHeight() - marginY * 2
+      const imgRatio = canvas.height / canvas.width
+      const scaledHeight = pdfWidth * imgRatio
+
+      if (scaledHeight <= pdfHeight) {
+        pdf.addImage(imgData, 'PNG', marginX, marginY, pdfWidth, scaledHeight)
+      } else {
+        let yOffset = 0
+        while (yOffset < scaledHeight) {
+          if (yOffset > 0) pdf.addPage()
+          pdf.addImage(imgData, 'PNG', marginX, marginY - yOffset, pdfWidth, scaledHeight)
+          yOffset += pdfHeight
+        }
+      }
+
+      const clienteNombre = (selectedCliente?.nombre || 'reporte').replace(/\s+/g, '_')
+      pdf.save(`Reporte_${clienteNombre}_${reporte.periodo_inicio}_${reporte.periodo_fin}.pdf`)
+    } catch (err) {
+      console.error('Error generando PDF:', err)
+    } finally {
+      setGeneratingPDF(false)
+    }
+  }
 
   // For admin: sync client from URL
   useEffect(() => {
@@ -469,7 +517,8 @@ export function ReportePage() {
           )}
           {reporte && !editing && (
             <button
-              onClick={() => window.print()}
+              onClick={handleDownloadPDF}
+              disabled={generatingPDF}
               style={{
                 padding: 'var(--space-2) var(--space-4)',
                 background: 'transparent',
@@ -477,11 +526,12 @@ export function ReportePage() {
                 border: '1px solid var(--color-border)',
                 borderRadius: 'var(--radius-md)',
                 fontSize: 'var(--font-size-sm)',
-                cursor: 'pointer',
+                cursor: generatingPDF ? 'not-allowed' : 'pointer',
+                opacity: generatingPDF ? 0.6 : 1,
                 whiteSpace: 'nowrap',
               }}
             >
-              ↓ Descargar PDF
+              {generatingPDF ? 'Generando PDF…' : '↓ Descargar PDF'}
             </button>
           )}
         </div>
@@ -587,7 +637,11 @@ export function ReportePage() {
       )}
 
       {/* Report display */}
-      {!loading && reporte && !editing && <ReporteContent reporte={reporte} />}
+      {!loading && reporte && !editing && (
+        <div ref={reportContentRef}>
+          <ReporteContent reporte={reporte} />
+        </div>
+      )}
     </AppShell>
   )
 }

@@ -362,15 +362,6 @@ function ReporteContent({ reporte }) {
         </ReporteSeccion>
       )}
 
-      {/* Footer */}
-      <p style={{
-        margin: 0,
-        fontSize: 'var(--font-size-xs, 11px)',
-        color: 'var(--color-text-tertiary, #9ca3af)',
-        textAlign: 'right',
-      }}>
-        Generado automáticamente el {formatDisplayDate(reporte.generado_en?.split('T')[0])}
-      </p>
     </div>
   )
 }

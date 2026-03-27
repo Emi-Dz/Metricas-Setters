@@ -329,13 +329,24 @@ function ReporteContent({ reporte }) {
       {/* 9. Recomendaciones Estratégicas */}
       {(reporte.recomendaciones || []).length > 0 && (
         <ReporteSeccion numero="9" titulo="Recomendaciones Estratégicas">
-          <ul style={{ margin: 0, paddingLeft: 'var(--space-5)', display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
             {reporte.recomendaciones.map((r, i) => (
-              <li key={i} style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)' }}>
-                {r}
-              </li>
+              <div key={i}>
+                {typeof r === 'string' ? (
+                  <p style={{ margin: 0, color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)' }}>{r}</p>
+                ) : (
+                  <>
+                    <p style={{ margin: '0 0 var(--space-1)', fontWeight: 'var(--font-weight-semibold)', fontSize: 'var(--font-size-sm)', color: 'var(--color-text-primary)' }}>
+                      {r.numero ? `${r.numero}. ` : ''}{r.titulo}
+                    </p>
+                    <p style={{ margin: 0, color: 'var(--color-text-secondary)', fontSize: 'var(--font-size-sm)' }}>
+                      {r.descripcion}
+                    </p>
+                  </>
+                )}
+              </div>
             ))}
-          </ul>
+          </div>
         </ReporteSeccion>
       )}
 

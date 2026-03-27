@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "n8n-mcp": {
+      "command": "n8n-mcp",
+      "env": {
+        "MCP_MODE": "stdio",
+        "LOG_LEVEL": "error",
+        "DISABLE_CONSOLE_OUTPUT": "true",
+        "N8N_API_URL": "https://n8n.dlxtech-ia.com/",
+        "N8N_API_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI3MTE0MGU3OS1mYjJiLTQwNzAtOGQ3Yy00NTY0ZGVmMDM4NTciLCJpc3MiOiJuOG4iLCJhdWQiOiJwdWJsaWMtYXBpIiwiaWF0IjoxNzcxOTkzMjU1fQ.tKMZth9x8TJa111GSp3XYHmhcqGhXOhiaBXPSNrF7s8"
+      }
+    }
+  }
+}

@@ -5,6 +5,7 @@ import { LoginPage } from './pages/LoginPage'
 import { ClientDashboardPage } from './pages/ClientDashboardPage'
 import { AdminDashboardPage } from './pages/AdminDashboardPage'
 import { AdminClientesPage } from './pages/AdminClientesPage'
+import { ReportePage } from './pages/ReportePage'
 import { Spinner } from './components/ui/Spinner'
 
 /**
@@ -61,6 +62,24 @@ function AppRoutes() {
         element={
           <ProtectedRoute requiredRole="admin">
             <AdminClientesPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/reporte"
+        element={
+          <ProtectedRoute requiredRole="admin">
+            <ReportePage />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Client: reporte quincenal */}
+      <Route
+        path="/reporte"
+        element={
+          <ProtectedRoute requiredRole="cliente">
+            <ReportePage />
           </ProtectedRoute>
         }
       />

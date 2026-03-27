@@ -87,7 +87,53 @@ CREATE POLICY "Authenticated reads active clientes"
   USING (auth.role() = 'authenticated');
 
 
--- ── 3. PRIMER ADMIN ────────────────────────────────────────
+-- ── 3. TABLA: reportes_quincenales ─────────────────────────
+--    Guarda los reportes quincenales generados automáticamente
+--    por n8n cada 15 días. El INSERT lo hace n8n con service_role_key.
+
+CREATE TABLE IF NOT EXISTS reportes_quincenales (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  cliente_id UUID NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+  periodo_inicio DATE NOT NULL,
+  periodo_fin DATE NOT NULL,
+
+  -- Secciones generadas por IA
+  resumen_ejecutivo TEXT,
+  analisis_embudo TEXT,
+  patrones_detectados JSONB DEFAULT '[]',
+  brechas JSONB DEFAULT '[]',
+  recomendaciones JSONB DEFAULT '[]',
+  analisis_llamadas JSONB DEFAULT '{}',
+  control_tecnico JSONB DEFAULT '{}',
+  conclusion TEXT,
+
+  -- Métricas calculadas y datos diarios (cache)
+  metricas_calculadas JSONB DEFAULT '{}',
+  analisis_diario JSONB DEFAULT '[]',
+
+  generado_en TIMESTAMPTZ DEFAULT now(),
+  created_at TIMESTAMPTZ DEFAULT now(),
+
+  UNIQUE(cliente_id, periodo_inicio)
+);
+
+ALTER TABLE reportes_quincenales ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Cliente reads own reportes" ON reportes_quincenales;
+CREATE POLICY "Cliente reads own reportes"
+  ON reportes_quincenales FOR SELECT
+  USING (
+    cliente_id = (SELECT cliente_id FROM profiles WHERE id = auth.uid())
+    OR (SELECT role FROM profiles WHERE id = auth.uid()) = 'admin'
+  );
+
+-- n8n inserta usando service_role_key (bypass RLS), no se necesita política de INSERT.
+-- Si se usa anon_key desde n8n, descomentar:
+-- DROP POLICY IF EXISTS "Anon insert reportes" ON reportes_quincenales;
+-- CREATE POLICY "Anon insert reportes" ON reportes_quincenales FOR INSERT WITH CHECK (true);
+
+
+-- ── 4. PRIMER ADMIN ────────────────────────────────────────
 --    Pasos:
 --    a) Ir a Authentication → Users → Add user (email + contraseña)
 --    b) Copiar el UUID del usuario creado

@@ -21,9 +21,9 @@ const COLUMNS = [
   { key: 'agendas_confirmadas', label: 'Ag. Confirmadas' },
 ]
 
-export function MetricsTable({ data, loading }) {
+export function MetricsTable({ data, loading, defaultSortAsc = false }) {
   const [sortKey, setSortKey] = useState('fecha')
-  const [sortAsc, setSortAsc] = useState(false)
+  const [sortAsc, setSortAsc] = useState(defaultSortAsc)
 
   const handleSort = (key) => {
     if (sortKey === key) {

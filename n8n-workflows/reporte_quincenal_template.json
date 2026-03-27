@@ -1,0 +1,328 @@
+{
+  "name": "Reporte Quincenal Automático - TEMPLATE",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## ⚙️ Configuración necesaria antes de activar\n\n**1. UUID del cliente** → buscar en tabla `clientes` de Supabase\n   Reemplazar en nodos: \"Obtener Métricas Período\" y \"Parsear Respuesta IA\"\n\n**2. URL de Supabase** → `https://PROYECTO.supabase.co`\n   Reemplazar en nodo: \"Guardar en Supabase\"\n\n**3. Service Role Key de Supabase** → Settings → API → service_role\n   Reemplazar en nodo: \"Guardar en Supabase\" (2 veces: apikey y Authorization)\n\n**4. Credencial GHL** → Crear credencial tipo \"Header Auth\":\n   - Header Name: `Authorization`\n   - Header Value: `Bearer <TU_API_KEY_GHL>`\n   Asignar al nodo: \"Obtener Citas GHL\"\n\n**5. Credencial Postgres** → La misma que usás en el workflow de conversaciones\n   Asignar a nodos: \"Obtener Métricas Período\" y \"Obtener Conversaciones\"\n\n**6. Credencial OpenAI** → La misma que usás en el workflow de conversaciones\n   Asignar al nodo: \"Analizar con IA\"\n\n**7. Credencial Telegram** → La misma que usás en el workflow de conversaciones\n   Asignar al nodo: \"Notificar por Telegram\"\n   Actualizar el chatId si es diferente\n\n---\n## 📅 Lógica del disparador\n- Día 1 del mes → genera reporte de la **2ª quincena del mes anterior** (16 al último día)\n- Día 16 del mes → genera reporte de la **1ª quincena del mes actual** (1 al 15)\n\n## 🔄 Clonación por cliente\nDuplicar este workflow y cambiar solo el UUID del cliente en los 2 nodos marcados.",
+        "height": 560,
+        "width": 580,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-2420, -380],
+      "id": "note-setup-001",
+      "name": "📋 Instrucciones de Setup"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 1,16 * *"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-2400, 240],
+      "id": "trigger-quincenal-001",
+      "name": "Disparador Quincenal"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// CALCULAR PERÍODO QUINCENAL\n// Día 1  → reporte de la 2ª quincena del mes ANTERIOR (16 al fin)\n// Día 16 → reporte de la 1ª quincena del mes ACTUAL   (1 al 15)\n// ============================================================\nconst now = new Date();\nconst day = now.getDate();\nlet inicio, fin;\n\nif (day <= 15) {\n  // Corriendo el día 1 → período = 16 al último del mes anterior\n  inicio = new Date(now.getFullYear(), now.getMonth() - 1, 16);\n  fin    = new Date(now.getFullYear(), now.getMonth(), 0); // último día del mes anterior\n} else {\n  // Corriendo el día 16 → período = 1 al 15 del mes actual\n  inicio = new Date(now.getFullYear(), now.getMonth(), 1);\n  fin    = new Date(now.getFullYear(), now.getMonth(), 15);\n}\n\nconst fmtDate = d => d.toISOString().split('T')[0];\nconst endOfDay = new Date(fin);\nendOfDay.setHours(23, 59, 59, 999);\n\nreturn [{\n  json: {\n    periodo_inicio:      fmtDate(inicio),\n    periodo_fin:         fmtDate(fin),\n    ghl_start_timestamp: inicio.getTime(),\n    ghl_end_timestamp:   endOfDay.getTime()\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-2160, 240],
+      "id": "code-calcular-periodo",
+      "name": "Calcular Período"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT fecha, leads_totales, agendas_enviadas, agendas_confirmadas\nFROM metricas_diarias\nWHERE cliente_id = 'REEMPLAZAR-CON-UUID-DEL-CLIENTE'\n  AND fecha BETWEEN '{{ $json.periodo_inicio }}' AND '{{ $json.periodo_fin }}'\nORDER BY fecha ASC",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [-1920, 240],
+      "id": "pg-metricas-periodo",
+      "name": "Obtener Métricas Período",
+      "credentials": {
+        "postgres": {
+          "id": "REEMPLAZAR-CON-ID-CREDENCIAL-POSTGRES",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all();\nconst leads       = rows.reduce((s, r) => s + (Number(r.json.leads_totales)       || 0), 0);\nconst enviadas    = rows.reduce((s, r) => s + (Number(r.json.agendas_enviadas)    || 0), 0);\nconst confirmadas = rows.reduce((s, r) => s + (Number(r.json.agendas_confirmadas) || 0), 0);\n\nconst diaPico = rows.reduce((max, r) => {\n  const l = Number(r.json.leads_totales) || 0;\n  return l > (max?.leads || 0) ? { fecha: r.json.fecha, leads: l } : max;\n}, null);\n\nreturn [{\n  json: {\n    metricas_calculadas: {\n      leads_totales:       leads,\n      agendas_enviadas:    enviadas,\n      agendas_confirmadas: confirmadas,\n      tasa_conversion:     leads     > 0 ? ((enviadas    / leads)    * 100).toFixed(1) : '0.0',\n      tasa_confirmacion:   enviadas  > 0 ? ((confirmadas / enviadas) * 100).toFixed(1) : '0.0',\n      dia_pico: diaPico\n    },\n    analisis_diario: rows.map(r => ({\n      fecha:                r.json.fecha,\n      leads_totales:        Number(r.json.leads_totales)       || 0,\n      agendas_enviadas:     Number(r.json.agendas_enviadas)    || 0,\n      agendas_confirmadas:  Number(r.json.agendas_confirmadas) || 0\n    }))\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1680, 240],
+      "id": "code-calcular-totales",
+      "name": "Calcular Totales"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, session_id, message, created_at\nFROM n8n_chat_histories\nWHERE created_at >= '{{ $('Calcular Período').first().json.periodo_inicio }}'::date\n  AND created_at <  '{{ $('Calcular Período').first().json.periodo_fin }}'::date + INTERVAL '1 day'\nORDER BY id ASC\nLIMIT 200",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [-1440, 240],
+      "id": "pg-conversaciones",
+      "name": "Obtener Conversaciones",
+      "credentials": {
+        "postgres": {
+          "id": "REEMPLAZAR-CON-ID-CREDENCIAL-POSTGRES",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all();\nif (!rows || rows.length === 0) {\n  return [{ json: { sessions: [], sessionCount: 0 } }];\n}\n\nconst sessions = {};\nfor (const row of rows) {\n  const { session_id, message } = row.json;\n  if (!session_id) continue;\n  if (!sessions[session_id]) sessions[session_id] = [];\n  let msg = message;\n  if (typeof msg === 'string') {\n    try { msg = JSON.parse(msg); } catch(e) { msg = { type: 'unknown', content: String(message) }; }\n  }\n  const content = (msg.content || '').slice(0, 400);\n  if (content) {\n    sessions[session_id].push({\n      role:    msg.type === 'ai' ? 'Agente' : 'Lead',\n      content\n    });\n  }\n}\n\nconst sessionList = Object.entries(sessions)\n  .map(([sid, messages]) => ({\n    session_id:   sid.slice(-6),\n    messages,\n    messageCount: messages.length\n  }))\n  .filter(s => s.messageCount >= 2)\n  .slice(0, 30);\n\nreturn [{ json: { sessions: sessionList, sessionCount: sessionList.length } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1200, 240],
+      "id": "code-agrupar-sesiones",
+      "name": "Agrupar Sesiones"
+    },
+    {
+      "parameters": {
+        "url": "https://services.leadconnectorhq.com/calendars/events",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "locationId",
+              "value": "YqZK1BYc7QFgqSc7GPBF"
+            },
+            {
+              "name": "calendarId",
+              "value": "SHX9aMqTyza3AfYYeXvh"
+            },
+            {
+              "name": "startTime",
+              "value": "={{ $('Calcular Período').first().json.ghl_start_timestamp }}"
+            },
+            {
+              "name": "endTime",
+              "value": "={{ $('Calcular Período').first().json.ghl_end_timestamp }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Version",
+              "value": "2021-04-15"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-960, 240],
+      "id": "http-ghl-citas",
+      "name": "Obtener Citas GHL",
+      "alwaysOutputData": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REEMPLAZAR-CON-ID-CREDENCIAL-GHL",
+          "name": "GHL API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Combinar todos los datos para enviar a la IA\nconst periodo   = $('Calcular Período').first().json;\nconst metricas  = $('Calcular Totales').first().json;\nconst sesiones  = $('Agrupar Sesiones').first().json;\n\n// Procesar respuesta GHL (el campo puede variar según versión de API)\nconst ghlRaw  = $input.first().json;\nconst eventos = ghlRaw.events || ghlRaw.appointments || ghlRaw.data || [];\n\nconst citas = (Array.isArray(eventos) ? eventos : []).map(e => ({\n  titulo:    e.title || '',\n  fecha:     e.startTime ? new Date(Number(e.startTime)).toISOString().split('T')[0] : '',\n  status:    e.appointmentStatus || e.status || '',\n  notas:     e.notes || e.note || '',\n  contactId: e.contactId || ''\n})).filter(c => c.fecha);\n\n// Clasificar status de las citas\nconst isShowed    = s => ['showed', 'completed'].includes(s);\nconst isNoShowed  = s => ['no-show', 'noShow', 'no_showed', 'no_show'].includes(s);\nconst isCancelled = s => ['cancelled', 'canceled'].includes(s);\nconst isBooked    = s => ['booked', 'confirmed'].includes(s);\n\nconst estadoCitas = {\n  total:         citas.length,\n  showed:        citas.filter(c => isShowed(c.status)).length,\n  no_showed:     citas.filter(c => isNoShowed(c.status)).length,\n  cancelled:     citas.filter(c => isCancelled(c.status)).length,\n  booked:        citas.filter(c => isBooked(c.status)).length,\n  notas_internas: citas\n    .filter(c => c.notas && c.notas.trim())\n    .map(c => ({ fecha: c.fecha, nota: c.notas.slice(0, 400) }))\n};\n\nreturn [{\n  json: {\n    periodo_inicio:    periodo.periodo_inicio,\n    periodo_fin:       periodo.periodo_fin,\n    metricas_calculadas: metricas.metricas_calculadas,\n    analisis_diario:   metricas.analisis_diario,\n    sesiones:          sesiones.sessions,\n    sessionCount:      sesiones.sessionCount,\n    estadoCitas\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-720, 240],
+      "id": "code-preparar-datos",
+      "name": "Preparar Datos para IA"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list",
+          "cachedResultName": "GPT-4O"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "Sos un analista de métricas de ventas para FINANCIERAS EMPODERADAS, un sistema de agendamiento de llamadas con leads.\n\nAnalizá los datos del período y generá un reporte quincenal completo.\nRespondé ÚNICAMENTE con JSON válido con esta estructura exacta (sin texto extra, sin markdown, sin bloques de código):\n\n{\n  \"resumen_ejecutivo\": \"Párrafo de 3-4 oraciones describiendo el período, resultados principales y contexto general\",\n  \"analisis_embudo\": \"Descripción del comportamiento del embudo: captación de leads, conversión a agenda y tasa de confirmación final. Identificar en qué etapa hay más fricción.\",\n  \"patrones_detectados\": [\n    { \"titulo\": \"Nombre del patrón detectado\", \"descripcion\": \"Qué está pasando y por qué importa\", \"oportunidad\": \"Qué acción concreta mejora esto\" }\n  ],\n  \"brechas\": [\"Brecha 1 identificada\", \"Brecha 2 identificada\"],\n  \"recomendaciones\": [\n    { \"numero\": 1, \"titulo\": \"Título corto de la recomendación\", \"descripcion\": \"Descripción accionable de qué hacer y cómo\" }\n  ],\n  \"analisis_llamadas\": {\n    \"perfil\": [\"Característica del perfil de leads que llegaron a llamada\"],\n    \"objecion_principal\": \"Principal objeción o freno detectado en las llamadas\",\n    \"estado\": { \"total\": 0, \"interes_alto\": 0, \"interes_medio\": 0, \"interes_bajo\": 0, \"cierres_probables\": 0 }\n  },\n  \"control_tecnico\": {\n    \"tiempo_respuesta\": \"Evaluación del tiempo de respuesta del agente en las conversaciones\",\n    \"mejoras_implementadas\": \"Mejoras o correcciones aplicadas durante el período, o 'Sin cambios registrados' si no hay\"\n  },\n  \"conclusion\": \"Párrafo final resumiendo los 2 ejes de mejora clave para el siguiente período: estratégico (conversión) y de volumen (escala)\"\n}\n\nSi no hay conversaciones disponibles, basá el análisis en las métricas y los datos de citas GHL.\nSi no hay citas, basá el análisis de llamadas solo en las conversaciones.",
+              "role": "system"
+            },
+            {
+              "content": "=PERÍODO: {{ $json.periodo_inicio }} al {{ $json.periodo_fin }}\n\nMÉTRICAS DEL PERÍODO:\n{{ JSON.stringify($json.metricas_calculadas, null, 2) }}\n\nDETALLE DIARIO:\n{{ JSON.stringify($json.analisis_diario, null, 2) }}\n\nESTADO DE CITAS (desde GHL):\n{{ JSON.stringify($json.estadoCitas, null, 2) }}\n\nCONVERSACIONES DEL AGENTE ({{ $json.sessionCount }} sesiones analizadas):\n{{ JSON.stringify($json.sesiones, null, 2) }}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.3
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [-480, 240],
+      "id": "openai-analizar",
+      "name": "Analizar con IA",
+      "credentials": {
+        "openAiApi": {
+          "id": "REEMPLAZAR-CON-ID-CREDENCIAL-OPENAI",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parsear la respuesta JSON de la IA\nlet rawContent = $input.first().json;\nlet contentStr = '';\n\nif (rawContent.message && rawContent.message.content) {\n  contentStr = rawContent.message.content;\n} else if (rawContent.choices && rawContent.choices[0]) {\n  contentStr = rawContent.choices[0].message?.content || '';\n} else if (typeof rawContent === 'string') {\n  contentStr = rawContent;\n} else {\n  contentStr = JSON.stringify(rawContent);\n}\n\n// Limpiar posibles bloques de código markdown\ncontentStr = contentStr.replace(/^```json\\s*/m, '').replace(/\\s*```$/m, '').trim();\n\nlet analysis;\ntry {\n  analysis = JSON.parse(contentStr);\n} catch(e) {\n  const match = contentStr.match(/\\{[\\s\\S]*\\}/);\n  if (match) {\n    try { analysis = JSON.parse(match[0]); }\n    catch(e2) { throw new Error('No se pudo parsear respuesta de IA: ' + contentStr.slice(0, 300)); }\n  } else {\n    throw new Error('Respuesta de IA inválida: ' + contentStr.slice(0, 300));\n  }\n}\n\nconst datos = $('Preparar Datos para IA').first().json;\n\nreturn [{\n  json: {\n    // ⚠️ REEMPLAZAR con el UUID real del cliente en Supabase\n    cliente_id:           'REEMPLAZAR-CON-UUID-DEL-CLIENTE',\n    periodo_inicio:       datos.periodo_inicio,\n    periodo_fin:          datos.periodo_fin,\n    resumen_ejecutivo:    analysis.resumen_ejecutivo    || '',\n    analisis_embudo:      analysis.analisis_embudo      || '',\n    patrones_detectados:  analysis.patrones_detectados  || [],\n    brechas:              analysis.brechas              || [],\n    recomendaciones:      analysis.recomendaciones      || [],\n    analisis_llamadas:    analysis.analisis_llamadas    || {},\n    control_tecnico:      analysis.control_tecnico      || {},\n    conclusion:           analysis.conclusion           || '',\n    metricas_calculadas:  datos.metricas_calculadas,\n    analisis_diario:      datos.analisis_diario,\n    generado_en:          new Date().toISOString()\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-240, 240],
+      "id": "code-parsear-ia",
+      "name": "Parsear Respuesta IA"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://REEMPLAZAR-PROJECT-REF.supabase.co/rest/v1/reportes_quincenales",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "REEMPLAZAR-CON-SERVICE-ROLE-KEY"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer REEMPLAZAR-CON-SERVICE-ROLE-KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [0, 240],
+      "id": "http-guardar-supabase",
+      "name": "Guardar en Supabase"
+    },
+    {
+      "parameters": {
+        "chatId": "-1003832241448",
+        "text": "=*✅ Reporte Quincenal generado — FINANCIERAS EMPODERADAS*\n\n📅 Período: {{ $('Parsear Respuesta IA').first().json.periodo_inicio }} al {{ $('Parsear Respuesta IA').first().json.periodo_fin }}\n\n📊 *Métricas del período:*\n• Leads: {{ $('Parsear Respuesta IA').first().json.metricas_calculadas.leads_totales }}\n• Ag. Enviadas: {{ $('Parsear Respuesta IA').first().json.metricas_calculadas.agendas_enviadas }}\n• Confirmadas: {{ $('Parsear Respuesta IA').first().json.metricas_calculadas.agendas_confirmadas }}\n• Conversión: {{ $('Parsear Respuesta IA').first().json.metricas_calculadas.tasa_conversion }}%\n• Confirmación: {{ $('Parsear Respuesta IA').first().json.metricas_calculadas.tasa_confirmacion }}%\n\nEl reporte completo ya está disponible en la plataforma web.",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [240, 240],
+      "id": "telegram-notificar",
+      "name": "Notificar por Telegram",
+      "credentials": {
+        "telegramApi": {
+          "id": "REEMPLAZAR-CON-ID-CREDENCIAL-TELEGRAM",
+          "name": "Telegram account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Disparador Quincenal": {
+      "main": [
+        [{ "node": "Calcular Período", "type": "main", "index": 0 }]
+      ]
+    },
+    "Calcular Período": {
+      "main": [
+        [{ "node": "Obtener Métricas Período", "type": "main", "index": 0 }]
+      ]
+    },
+    "Obtener Métricas Período": {
+      "main": [
+        [{ "node": "Calcular Totales", "type": "main", "index": 0 }]
+      ]
+    },
+    "Calcular Totales": {
+      "main": [
+        [{ "node": "Obtener Conversaciones", "type": "main", "index": 0 }]
+      ]
+    },
+    "Obtener Conversaciones": {
+      "main": [
+        [{ "node": "Agrupar Sesiones", "type": "main", "index": 0 }]
+      ]
+    },
+    "Agrupar Sesiones": {
+      "main": [
+        [{ "node": "Obtener Citas GHL", "type": "main", "index": 0 }]
+      ]
+    },
+    "Obtener Citas GHL": {
+      "main": [
+        [{ "node": "Preparar Datos para IA", "type": "main", "index": 0 }]
+      ]
+    },
+    "Preparar Datos para IA": {
+      "main": [
+        [{ "node": "Analizar con IA", "type": "main", "index": 0 }]
+      ]
+    },
+    "Analizar con IA": {
+      "main": [
+        [{ "node": "Parsear Respuesta IA", "type": "main", "index": 0 }]
+      ]
+    },
+    "Parsear Respuesta IA": {
+      "main": [
+        [{ "node": "Guardar en Supabase", "type": "main", "index": 0 }]
+      ]
+    },
+    "Guardar en Supabase": {
+      "main": [
+        [{ "node": "Notificar por Telegram", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "reporte-quincenal-template-v1"
+  }
+}

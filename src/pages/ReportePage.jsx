@@ -108,6 +108,7 @@ function ReporteEditForm({ reporte, onSave, onCancel, saving }) {
     analisis_embudo: reporte.analisis_embudo || '',
     conclusion: reporte.conclusion || '',
     patrones_detectados: JSON.stringify(reporte.patrones_detectados || [], null, 2),
+    ejemplos_conversaciones: JSON.stringify(reporte.ejemplos_conversaciones || [], null, 2),
     brechas: JSON.stringify(reporte.brechas || [], null, 2),
     recomendaciones: JSON.stringify(reporte.recomendaciones || [], null, 2),
     analisis_llamadas: JSON.stringify(reporte.analisis_llamadas || {}, null, 2),
@@ -124,6 +125,7 @@ function ReporteEditForm({ reporte, onSave, onCancel, saving }) {
         analisis_embudo: fields.analisis_embudo,
         conclusion: fields.conclusion,
         patrones_detectados: JSON.parse(fields.patrones_detectados),
+        ejemplos_conversaciones: JSON.parse(fields.ejemplos_conversaciones),
         brechas: JSON.parse(fields.brechas),
         recomendaciones: JSON.parse(fields.recomendaciones),
         analisis_llamadas: JSON.parse(fields.analisis_llamadas),
@@ -158,6 +160,11 @@ function ReporteEditForm({ reporte, onSave, onCancel, saving }) {
       <div>
         <label style={labelStyle}>Patrones detectados (JSON)</label>
         <textarea rows={8} style={{ ...textareaStyle, fontFamily: 'monospace' }} value={fields.patrones_detectados} onChange={set('patrones_detectados')} />
+      </div>
+
+      <div>
+        <label style={labelStyle}>Ejemplos destacados de conversaciones (JSON)</label>
+        <textarea rows={8} style={{ ...textareaStyle, fontFamily: 'monospace' }} value={fields.ejemplos_conversaciones} onChange={set('ejemplos_conversaciones')} />
       </div>
 
       <div>
@@ -296,6 +303,7 @@ function ReporteContent({ reporte }) {
       <ReportePatrones
         patrones={reporte.patrones_detectados || []}
         brechas={reporte.brechas || []}
+        ejemplos={reporte.ejemplos_conversaciones || []}
       />
 
       {/* 8. Control Técnico */}

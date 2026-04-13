@@ -295,16 +295,21 @@ function DeleteUserModal({ profile, onConfirm, onClose }) {
 // ─── New User Modal ───────────────────────────────────────────────────────────
 
 function NewUserModal({ clientes, onSave, onClose }) {
-  const [email, setEmail] = useState('')
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [role, setRole] = useState('cliente')
   const [clienteId, setClienteId] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
+  const buildEmail = (u) => {
+    const trimmed = u.trim()
+    return trimmed.includes('@') ? trimmed : `${trimmed}@gmail.com`
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!email.trim()) { setError('El email es obligatorio.'); return }
+    if (!username.trim()) { setError('El usuario es obligatorio.'); return }
     if (password.length < 6) { setError('La contraseña debe tener al menos 6 caracteres.'); return }
     if (role === 'cliente' && !clienteId) { setError('Seleccioná un cliente para este usuario.'); return }
 
@@ -312,7 +317,7 @@ function NewUserModal({ clientes, onSave, onClose }) {
     setError(null)
 
     const result = await onSave({
-      email: email.trim(),
+      email: buildEmail(username),
       password,
       role,
       cliente_id: role === 'admin' ? null : clienteId,
@@ -321,7 +326,7 @@ function NewUserModal({ clientes, onSave, onClose }) {
     if (result?.error) {
       const msg = result.error.message ?? ''
       if (msg.includes('already registered') || msg.includes('already been registered')) {
-        setError('Ya existe un usuario con ese email.')
+        setError('Ya existe un usuario con ese nombre.')
       } else {
         setError(`Error al crear el usuario: ${msg}`)
       }
@@ -337,16 +342,19 @@ function NewUserModal({ clientes, onSave, onClose }) {
       {error && <ErrorMessage message={error} />}
 
       <div className="form-group">
-        <label className="form-label">Email</label>
-        <input
-          type="email"
-          className="form-input"
-          placeholder="usuario@ejemplo.com"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          autoFocus
-          disabled={loading}
-        />
+        <label className="form-label">Usuario</label>
+        <div className="input-with-suffix">
+          <input
+            type="text"
+            className="form-input"
+            placeholder="tunombre"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            autoFocus
+            disabled={loading}
+          />
+          <span className="input-with-suffix__suffix">@gmail.com</span>
+        </div>
       </div>
 
       <div className="form-group">

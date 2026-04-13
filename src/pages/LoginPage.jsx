@@ -22,14 +22,19 @@ function LogoIcon() {
 export function LoginPage() {
   const { signIn, signOut } = useAuth()
 
-  const [email, setEmail] = useState('')
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
 
+  const buildEmail = (u) => {
+    const trimmed = u.trim()
+    return trimmed.includes('@') ? trimmed : `${trimmed}@gmail.com`
+  }
+
   const doLogin = async ({ forceSignOut = false } = {}) => {
-    if (!email.trim() || !password) {
-      setError('Completá tu email y contraseña.')
+    if (!username.trim() || !password) {
+      setError('Completá tu usuario y contraseña.')
       return
     }
 
@@ -43,7 +48,7 @@ export function LoginPage() {
 
       // Step 1: authenticate
       const { data: authData, error: authError } = await signIn(
-        email.trim(),
+        buildEmail(username),
         password
       )
       console.log('[Login] signIn:', { userId: authData?.session?.user?.id, authError })
@@ -111,20 +116,23 @@ export function LoginPage() {
           {error && <ErrorMessage message={error} />}
 
           <div className="form-group">
-            <label className="form-label" htmlFor="email">
-              Email
+            <label className="form-label" htmlFor="username">
+              Usuario
             </label>
-            <input
-              id="email"
-              type="email"
-              className="form-input"
-              placeholder="tucorreo@ejemplo.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              autoComplete="email"
-              autoFocus
-              disabled={submitting}
-            />
+            <div className="input-with-suffix">
+              <input
+                id="username"
+                type="text"
+                className="form-input"
+                placeholder="tunombre"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                autoComplete="username"
+                autoFocus
+                disabled={submitting}
+              />
+              <span className="input-with-suffix__suffix">@gmail.com</span>
+            </div>
           </div>
 
           <div className="form-group">

@@ -26,5 +26,18 @@ export function useClientes() {
       })
   }, [])
 
-  return { clientes, loading, error }
+  const createCliente = async ({ nombre, slug }) => {
+    const { data, error: err } = await supabase
+      .from('clientes')
+      .insert({ nombre, slug, activo: true })
+      .select('id, nombre, slug, activo')
+      .single()
+
+    if (err) return { error: err }
+
+    setClientes((prev) => [...prev, data].sort((a, b) => a.nombre.localeCompare(b.nombre)))
+    return { data }
+  }
+
+  return { clientes, loading, error, createCliente }
 }

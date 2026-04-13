@@ -29,6 +29,17 @@ function IconPlus() {
   )
 }
 
+function IconTrash() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+      <path d="M10 11v6M14 11v6" />
+      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+    </svg>
+  )
+}
+
 function IconUsers() {
   return (
     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -66,9 +77,10 @@ function RoleBadge({ role }) {
 
 // ─── Edit Profile Modal ───────────────────────────────────────────────────────
 
-function EditProfileModal({ profile, clientes, onSave, onClose }) {
+function EditProfileModal({ profile, clientes, onSave, onChangePassword, onClose }) {
   const [role, setRole] = useState(profile.role ?? 'cliente')
   const [clienteId, setClienteId] = useState(profile.cliente_id ?? '')
+  const [newPassword, setNewPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
@@ -78,8 +90,13 @@ function EditProfileModal({ profile, clientes, onSave, onClose }) {
       setError('Seleccioná un cliente para este usuario.')
       return
     }
+    if (newPassword && newPassword.length < 6) {
+      setError('La contraseña debe tener al menos 6 caracteres.')
+      return
+    }
     setLoading(true)
     setError(null)
+
     const result = await onSave(profile.id, {
       role,
       cliente_id: role === 'admin' ? null : clienteId,
@@ -89,6 +106,16 @@ function EditProfileModal({ profile, clientes, onSave, onClose }) {
       setLoading(false)
       return
     }
+
+    if (newPassword) {
+      const pwResult = await onChangePassword(profile.id, newPassword)
+      if (pwResult?.error) {
+        setError(`Perfil guardado, pero error al cambiar contraseña: ${pwResult.error.message}`)
+        setLoading(false)
+        return
+      }
+    }
+
     onClose()
   }
 
@@ -126,11 +153,142 @@ function EditProfileModal({ profile, clientes, onSave, onClose }) {
         </p>
       )}
 
+      <div className="form-group">
+        <label className="form-label">Nueva contraseña <span style={{ fontWeight: 'normal', color: 'var(--color-text-muted)' }}>(opcional)</span></label>
+        <input
+          type="password"
+          className="form-input"
+          placeholder="Dejá vacío para no cambiarla"
+          value={newPassword}
+          onChange={(e) => setNewPassword(e.target.value)}
+          disabled={loading}
+        />
+      </div>
+
       <div className="modal__footer" style={{ paddingLeft: 0, paddingRight: 0, paddingBottom: 0 }}>
         <Button variant="secondary" onClick={onClose} disabled={loading}>Cancelar</Button>
         <Button variant="primary" type="submit" loading={loading}>Guardar cambios</Button>
       </div>
     </form>
+  )
+}
+
+// ─── New Cliente Modal ────────────────────────────────────────────────────────
+
+function slugify(str) {
+  return str
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+}
+
+function NewClienteModal({ onSave, onClose }) {
+  const [nombre, setNombre] = useState('')
+  const [slug, setSlug] = useState('')
+  const [slugTouched, setSlugTouched] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+
+  const handleNombreChange = (e) => {
+    const val = e.target.value
+    setNombre(val)
+    if (!slugTouched) setSlug(slugify(val))
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (!nombre.trim()) { setError('El nombre es obligatorio.'); return }
+    if (!slug.trim()) { setError('El slug es obligatorio.'); return }
+    setLoading(true)
+    setError(null)
+    const result = await onSave({ nombre: nombre.trim(), slug: slug.trim() })
+    if (result?.error) {
+      const msg = result.error.message ?? ''
+      if (msg.includes('duplicate') || msg.includes('unique')) {
+        setError('Ya existe un cliente con ese slug. Usá uno diferente.')
+      } else {
+        setError(`Error al crear: ${msg}`)
+      }
+      setLoading(false)
+      return
+    }
+    onClose()
+  }
+
+  return (
+    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+      {error && <ErrorMessage message={error} />}
+
+      <div className="form-group">
+        <label className="form-label">Nombre del cliente</label>
+        <input
+          type="text"
+          className="form-input"
+          placeholder="Ej: Micaela Gallardo"
+          value={nombre}
+          onChange={handleNombreChange}
+          autoFocus
+          disabled={loading}
+        />
+      </div>
+
+      <div className="form-group">
+        <label className="form-label">Slug <span style={{ fontWeight: 'normal', color: 'var(--color-text-muted)' }}>(identificador único)</span></label>
+        <input
+          type="text"
+          className="form-input"
+          placeholder="micaela-gallardo"
+          value={slug}
+          onChange={(e) => { setSlug(e.target.value); setSlugTouched(true) }}
+          disabled={loading}
+        />
+        <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)', marginTop: '4px' }}>
+          Solo letras minúsculas, números y guiones. Se genera automáticamente.
+        </p>
+      </div>
+
+      <div className="modal__footer" style={{ paddingLeft: 0, paddingRight: 0, paddingBottom: 0 }}>
+        <Button variant="secondary" onClick={onClose} disabled={loading}>Cancelar</Button>
+        <Button variant="primary" type="submit" loading={loading}>Crear cliente</Button>
+      </div>
+    </form>
+  )
+}
+
+// ─── Delete Confirm Modal ─────────────────────────────────────────────────────
+
+function DeleteUserModal({ profile, onConfirm, onClose }) {
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+
+  const handleConfirm = async () => {
+    setLoading(true)
+    setError(null)
+    const result = await onConfirm(profile.id)
+    if (result?.error) {
+      setError(`Error al eliminar: ${result.error.message}`)
+      setLoading(false)
+      return
+    }
+    onClose()
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+      {error && <ErrorMessage message={error} />}
+      <p style={{ fontSize: 'var(--font-size-sm)', color: 'var(--color-text-secondary)' }}>
+        ¿Estás seguro que querés eliminar al usuario <strong style={{ color: 'var(--color-text-primary)' }}>{profile.email}</strong>?
+      </p>
+      <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>
+        Esta acción es irreversible. Se eliminará la cuenta de acceso y el perfil.
+      </p>
+      <div className="modal__footer" style={{ paddingLeft: 0, paddingRight: 0, paddingBottom: 0 }}>
+        <Button variant="secondary" onClick={onClose} disabled={loading}>Cancelar</Button>
+        <Button variant="danger" onClick={handleConfirm} loading={loading}>Eliminar usuario</Button>
+      </div>
+    </div>
   )
 }
 
@@ -242,11 +400,13 @@ function NewUserModal({ clientes, onSave, onClose }) {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export function AdminClientesPage() {
-  const { profiles, loading, error, updateProfile, createUser } = useProfiles()
-  const { clientes } = useClientes()
+  const { profiles, loading, error, updateProfile, createUser, deleteUser, updatePassword } = useProfiles()
+  const { clientes, createCliente } = useClientes()
 
   const [editingProfile, setEditingProfile] = useState(null)
+  const [deletingProfile, setDeletingProfile] = useState(null)
   const [newUserOpen, setNewUserOpen] = useState(false)
+  const [newClienteOpen, setNewClienteOpen] = useState(false)
   const [successMsg, setSuccessMsg] = useState(null)
 
   const showSuccess = (msg) => {
@@ -267,7 +427,25 @@ export function AdminClientesPage() {
     const result = await createUser(fields)
     if (!result?.error) {
       setNewUserOpen(false)
-      showSuccess('Usuario creado correctamente. Si el email requiere confirmación, el usuario recibirá un correo.')
+      showSuccess('Usuario creado correctamente.')
+    }
+    return result
+  }
+
+  const handleDelete = async (userId) => {
+    const result = await deleteUser(userId)
+    if (!result?.error) {
+      setDeletingProfile(null)
+      showSuccess('Usuario eliminado correctamente.')
+    }
+    return result
+  }
+
+  const handleCreateCliente = async (fields) => {
+    const result = await createCliente(fields)
+    if (!result?.error) {
+      setNewClienteOpen(false)
+      showSuccess(`Cliente "${fields.nombre}" creado correctamente.`)
     }
     return result
   }
@@ -297,22 +475,6 @@ export function AdminClientesPage() {
         </div>
       )}
 
-      {/* SQL Setup notice */}
-      <div style={{
-        padding: 'var(--space-4) var(--space-5)',
-        background: 'var(--color-primary-50)',
-        border: '1px solid var(--color-primary-200)',
-        borderRadius: 'var(--radius-md)',
-        marginBottom: 'var(--space-6)',
-        fontSize: 'var(--font-size-sm)',
-        color: 'var(--color-primary-700)',
-        lineHeight: 'var(--line-height-normal)',
-      }}>
-        <strong>⚙ Setup requerido:</strong> Para que los usuarios recién creados tengan perfil automático,
-        ejecutá el trigger <code style={{ background: 'var(--color-primary-100)', padding: '1px 6px', borderRadius: '4px' }}>handle_new_user</code> en
-        el SQL Editor de Supabase. Ver instrucciones en el README del proyecto.
-      </div>
-
       {/* Toolbar */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-5)', flexWrap: 'wrap', gap: 'var(--space-3)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
@@ -333,10 +495,16 @@ export function AdminClientesPage() {
             </span>
           )}
         </div>
-        <Button variant="primary" size="md" onClick={() => setNewUserOpen(true)}>
-          <IconPlus />
-          Nuevo usuario
-        </Button>
+        <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+          <Button variant="secondary" size="md" onClick={() => setNewClienteOpen(true)}>
+            <IconPlus />
+            Nuevo cliente
+          </Button>
+          <Button variant="primary" size="md" onClick={() => setNewUserOpen(true)}>
+            <IconPlus />
+            Nuevo usuario
+          </Button>
+        </div>
       </div>
 
       {error && <ErrorMessage message={`Error al cargar usuarios: ${error}`} />}
@@ -413,14 +581,24 @@ export function AdminClientesPage() {
                         {formatDateTime(p.created_at)}
                       </td>
                       <td>
-                        <button
-                          className="btn btn--ghost btn--sm"
-                          onClick={() => setEditingProfile(p)}
-                          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-                        >
-                          <IconEdit />
-                          Editar
-                        </button>
+                        <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+                          <button
+                            className="btn btn--ghost btn--sm"
+                            onClick={() => setEditingProfile(p)}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                          >
+                            <IconEdit />
+                            Editar
+                          </button>
+                          <button
+                            className="btn btn--ghost btn--sm"
+                            onClick={() => setDeletingProfile(p)}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: 'var(--color-error, #dc2626)' }}
+                          >
+                            <IconTrash />
+                            Borrar
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   )
@@ -443,7 +621,24 @@ export function AdminClientesPage() {
             profile={editingProfile}
             clientes={clientes}
             onSave={handleUpdate}
+            onChangePassword={updatePassword}
             onClose={() => setEditingProfile(null)}
+          />
+        )}
+      </Modal>
+
+      {/* Delete confirm modal */}
+      <Modal
+        isOpen={Boolean(deletingProfile)}
+        onClose={() => setDeletingProfile(null)}
+        title="Eliminar usuario"
+        size="sm"
+      >
+        {deletingProfile && (
+          <DeleteUserModal
+            profile={deletingProfile}
+            onConfirm={handleDelete}
+            onClose={() => setDeletingProfile(null)}
           />
         )}
       </Modal>
@@ -459,6 +654,19 @@ export function AdminClientesPage() {
           clientes={clientes}
           onSave={handleCreate}
           onClose={() => setNewUserOpen(false)}
+        />
+      </Modal>
+
+      {/* New cliente modal */}
+      <Modal
+        isOpen={newClienteOpen}
+        onClose={() => setNewClienteOpen(false)}
+        title="Nuevo cliente"
+        size="sm"
+      >
+        <NewClienteModal
+          onSave={handleCreateCliente}
+          onClose={() => setNewClienteOpen(false)}
         />
       </Modal>
     </AppShell>

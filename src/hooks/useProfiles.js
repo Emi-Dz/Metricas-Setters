@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { adminAuthClient } from '../lib/adminAuthClient'
+import { adminServiceClient } from '../lib/adminServiceClient'
 
 /**
  * Fetches all profiles (admin only) joined with their client name.
@@ -98,5 +99,29 @@ export function useProfiles() {
     return { data: profileData }
   }
 
-  return { profiles, loading, error, updateProfile, createUser, refetch: fetchProfiles }
+  /**
+   * Deletes a user from Supabase Auth (and cascades to profiles via FK).
+   * Requires service_role key.
+   */
+  const deleteUser = async (userId) => {
+    const { error: err } = await adminServiceClient.auth.admin.deleteUser(userId)
+    if (err) return { error: err }
+
+    setProfiles((prev) => prev.filter((p) => p.id !== userId))
+    return { data: true }
+  }
+
+  /**
+   * Updates a user's password. Requires service_role key.
+   */
+  const updatePassword = async (userId, newPassword) => {
+    const { error: err } = await adminServiceClient.auth.admin.updateUserById(
+      userId,
+      { password: newPassword }
+    )
+    if (err) return { error: err }
+    return { data: true }
+  }
+
+  return { profiles, loading, error, updateProfile, createUser, deleteUser, updatePassword, refetch: fetchProfiles }
 }

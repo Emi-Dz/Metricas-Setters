@@ -86,6 +86,16 @@ CREATE POLICY "Authenticated reads active clientes"
   ON clientes FOR SELECT
   USING (auth.role() = 'authenticated');
 
+DROP POLICY IF EXISTS "Admin insert clientes" ON clientes;
+CREATE POLICY "Admin insert clientes"
+  ON clientes FOR INSERT
+  WITH CHECK ((SELECT role FROM profiles WHERE id = auth.uid()) = 'admin');
+
+DROP POLICY IF EXISTS "Admin update clientes" ON clientes;
+CREATE POLICY "Admin update clientes"
+  ON clientes FOR UPDATE
+  USING ((SELECT role FROM profiles WHERE id = auth.uid()) = 'admin');
+
 
 -- ── 3. TABLA: reportes_quincenales ─────────────────────────
 --    Guarda los reportes quincenales generados automáticamente

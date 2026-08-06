@@ -1,7 +1,18 @@
 node_modules/
 dist/
+
+# Variables de entorno — nunca commitear valores reales.
+# El template documentado y sin secretos es .env.example
 .env
 .env.local
 .env.*.local
+
+# Config del MCP server: contiene la API key de n8n en texto plano.
+# El template sin credenciales es .mcp.json.example
+.mcp.json
+
+# Notas locales con credenciales (ver CREDENCIALES.local.md)
+*.local.md
+
 *.log
 .DS_Store
